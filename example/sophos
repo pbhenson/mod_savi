@@ -1,0 +1,50 @@
+#
+# mod_savi integration code for amavis
+#
+# Paul B. Henson <henson@acm.org>
+#
+# Copyright (c) 2001-2002 Paul B. Henson -- see COPYRIGHT file for details
+#
+
+#
+# Sophos Anti Virus
+#
+
+if ($sophos ne "") {
+
+	if (opendir(SAVISCANDIR, "$TEMPDIR/parts")) {
+
+		my $urlbase = $TEMPDIR; $urlbase =~ s#^.*/##;
+
+		my $http = LWP::UserAgent->new(timeout => 180);
+
+		foreach (readdir(SAVISCANDIR)) {
+			next if /^\.\.?$/;
+
+			if (! -f "$TEMPDIR/parts/$_") {
+				do_log(0,"Virus scanner warning: unexpected directory $TEMPDIR/parts/$_");
+				next;
+			}
+			my $response = $http->head("http://127.0.0.1:8080/$urlbase/parts/$_");
+
+			if ($response->code() != 200) {
+				do_log(0,"Virus scanner error: response code " . $response->code() . " on file $TEMPDIR/parts/$_");
+				next;
+			}
+			else {
+				my ($result, @header) = split(/;/, $response->header('X-SAVI-Status'));
+
+				if ($result eq 'infected') {
+					push(@virusname, @header);
+					do_virus();
+				}
+				elsif ($result eq 'error') {
+					do_log(0, "Virus scanner error: $header[0]");
+				}
+			}
+		}
+	}
+	else {
+		do_log(0,"Virus scanner failure: unable to open $TEMPDIR/parts - $!");
+	}
+}

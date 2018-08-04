@@ -1,0 +1,219 @@
+Introduction
+------------
+
+mod_savi integrates the Sophos antivirus scanning engine into the Apache
+web server. This allows files delivered by the web server to be scanned
+for viruses in real time.
+
+mod_savi came about as part of a mail gateway virus scanning
+implementation. We had chosen amavis as the integration glue between our
+MTA and the virus scanner. Unfortunately, amavis spawned a new
+virus-scanning process for every mail message. Clearly, this is extremely
+inefficient and undesirable, particularly under heavy load.
+
+Preferably, a virus-scanning engine could remain resident and be called as
+necessary. While some projects along these lines already existed, none was
+quite what I was looking for.
+
+Ideally, such an implementation should be:
+
+     * robust/reliable
+     * portable
+     * secure
+     * scalable
+     * fast
+     * load-adjusting within resource limits
+
+
+From an abstract point of view, it seemed the Apache web server satisfied
+all of these criteria. It is well-tuned and highly reliable. It undergoes
+considerable auditing and has been ported to many platforms. It is
+designed to service many requests efficiently, and automatically grows or
+shrinks according to load, but has the ability to specify hard limits to
+prevent resource exhaustion. Plus, it has a modular API that allows
+flexible extensions. Rather than trying to reinvent a wheel, it seemed
+that integrating virus scanning into Apache would solve the problem
+elegantly.
+     
+At this point, all the module does if virus scanning is enabled is return
+an X-SAVI-Status header containing one of the following values:
+
+     clean
+     infected[;<virus_name>]+
+     error;<message>
+
+
+By setting the web server document root to the location of the files to
+be virus-scanned and issuing a HEAD request for a given file, a client
+can quickly and efficiently determine whether it contains a virus.
+
+While the current implementation is intended mainly for use in a mail
+gateway virus-scanning configuration, it could easily be extended to
+perform more general web/virus-related tasks. Possible extensions of
+this module could include refusal to deliver a virus-infected file,
+automatic cleaning of files as they are delivered, or scanning of uploaded
+files.
+
+
+Installation
+------------
+
+In order to successfully compile and use mod_savi, you must have already
+acquired and installed the Sophos Anti-Virus software and API. Information
+about these products can be found at
+
+     http://www.sophos.com/products/software/
+
+
+Move the savi subdirectory of the mod_savi distribution to the
+apache/src/modules directory. For example:
+
+     cd /path/to/mod_savi
+     tar cf - savi | (cd /path/to/apache/src/modules && tar xf -)
+
+
+If you are using the Apache Autoconf-style Interface (APACI), supply the
+option '--activate-module=src/modules/savi/mod_savi.c' to configure.
+Otherwise, edit the Configuration file and add the line
+
+     AddModule modules/savi/mod_savi.o
+
+
+Configure and compile Apache.
+
+
+Configuration Directives
+------------------------
+
+  Directive                  Context         Default Value
+  -----------------------------------------------------------------
+  SaviEnable                 directory       Off
+
+    This directive enables or disables virus scanning for requests
+    in the specified directory or location.
+
+  Directive                  Context         Default Value
+  -----------------------------------------------------------------
+  SaviIDELocation            server          -none-
+
+    This directive specifies the location for the Sophos virus
+    definition files. The location can also be specified by setting
+    the SAV_IDE environment variable before starting the web server.
+
+
+  Directive                  Context         Default Value
+  -----------------------------------------------------------------
+  SaviTmpDir                 server          -none-
+
+    This directive specifies the location for temporary files
+    during virus scanning. The location can also be specified by
+    setting the SAV_TMP environment variable before starting the
+    web server.
+
+
+  The following directives correspond to Sophos virus-scanning
+  options. Please see the appropriate Sophos documentation for
+  a full description of the options.
+
+  Directive                  Context         Default Value
+  -----------------------------------------------------------------
+  SaviDoFullSweep            server          On
+  SaviDynamicCompression     server          On
+  SaviFullMacroSweep         server          On
+  SaviOLE2Handling           server          On
+  SaviIgnoreTemplateBit      server          On
+  SaviVBA3Handling           server          On
+  SaviVBA5Handling           server          On
+  SaviOf95DecryptHandling    server          Off
+  SaviHelpHandling           server          On
+  SaviDecompressVBA5         server          On
+  SaviDoEmulation            server          On
+  SaviPEHandling             server          On
+  SaviXFHandling             server          On
+  SaviPM97Handling           server          On
+  SaviPPTEmbdHandling        server          On
+  SaviProjectHandling        server          On
+  SaviZipDecompression       server          On
+  SaviARJDecompression       server          On
+  SaviRARDecompression       server          On
+  SaviUUEDecompression       server          On
+  SaviGzipDecompression      server          On
+  SaviTarDecompression       server          On
+  SaviCMZDecompression       server          On
+  SaviHQXDecompression       server          On
+  SaviMbinDecompression      server          On
+  SaviLoopbackEnabled        server          Off
+  SaviMaxRecursionDepth      server          16
+  SaviLHADecompression       server          On
+  SaviSFXHandling            server          On
+  SaviMSCabinetHandling      server          On
+  SaviTNEFHandling           server          On
+  SaviMSCompressHandling     server          On
+  SaviDeleteAllMacros        server          Off
+  SaviVBE                    server          Off
+  SaviExecFileDisinfection   server          Off
+  SaviVisioFileHandling      server          On
+
+
+Files
+-----
+
+The following files are included in the distribution:
+
+  COPYRIGHT
+
+  README
+
+  example/httpd.conf
+
+    A sample Apache configuration file utilizing mod_savi
+    to perform virus scanning with amavis. It runs the web server
+    on the loopback interface port 8080 with the document root
+    set to the amavis temporary directory.
+
+  example/scan.pl
+
+    A simple example showing how to request a virus scan through
+    the web server and obtain the results.
+
+  example/sophos
+
+    A replacement for the bundled sophos integration code in
+    amavis to utilize a mod_savi-enabled web server for virus
+    scanning. This is based on amavis-perl-11. We haven't tried
+    amavisd yet, but this code should serve as a suitable example
+    for anyone interested in trying mod_savi with that version.
+
+  example/sophos_update.pl
+
+    A simple script to update Sophos virus definitions. When
+    executed with the -m option, it will download and install
+    the latest full version of the Sophos virus scanner. When
+    executed with no options, it will download and install the
+    latest available IDEs.
+
+  savi/Makefile.tmpl
+  savi/mod_savi.c
+
+    Apache module code.
+
+  savi/sav_if/*
+  
+    Header files required to compile a SAVI application.
+
+
+Changes
+-------
+
+  0.5 - First publicly released version
+
+
+Feedback/Availability
+---------------------
+
+Please report any bugs or feature requests to <henson@acm.org>.
+
+
+The latest version of mod_savi is currently available at
+
+http://www.csupomona.edu/~henson/www/projects/mod_savi/
